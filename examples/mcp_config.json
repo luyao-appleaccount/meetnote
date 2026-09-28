@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "meetnote": {
+      "command": "/ABSOLUTE/PATH/TO/venv/bin/python",
+      "args": ["/ABSOLUTE/PATH/TO/meetnote/mcp_server.py"]
+    }
+  }
+}

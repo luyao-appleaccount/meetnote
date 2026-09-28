@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 运行时数据(数据库/录音/基准音频)与模型二进制不入库
+data/
+models/*.onnx
+models/*.wav
+
+# 系统
+.DS_Store
+*.log

@@ -1,0 +1,11 @@
+# 会记 MeetNote · 实际依赖（版本号取自已验证可用的环境）
+# 录制转写 + 说话人分离 + Web 服务，共 8 个直接依赖
+faster-whisper==1.2.1      # 转写引擎(内置 Silero VAD 与 PyAV 音频解码)
+sherpa-onnx==1.13.8        # 说话人分离(3dspeaker 声纹,零授权)
+fastapi==0.141.1           # Web 服务
+uvicorn==0.53.0            # ASGI 服务器
+python-multipart==0.0.32   # 音频文件上传
+numpy==2.5.3
+sounddevice==0.5.6         # 麦克风采集(需要系统 PortAudio)
+requests==2.34.2           # 可选:LLM 纪要增强
+mcp==1.30.0                # 可选:MCP server(agent 调用);注意必须 <2,2.x API 已改
