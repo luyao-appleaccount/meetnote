@@ -27,9 +27,10 @@ MeetNote is a self-hosted meeting notes application. It records microphone input
 
 It ships in three forms on one codebase:
 
-- **Web app** — a FastAPI server with a single-page UI (live recording, in-meeting marks ⭐/✓, action-item hub, re-transcription with bigger models, Markdown export).
+- **Web app** — a FastAPI server with a single-page UI (live recording, system-audio capture for meeting apps via BlackHole, in-meeting marks ⭐/✓, action-item hub, re-transcription with bigger models, Markdown export).
 - **SDK / CLI** — `import sdk` or `python sdk.py diarize meeting.wav` for scripts and agents.
 - **MCP server** — expose transcription and diarization as tools for Claude Code, Claude Desktop, WorkBuddy, and other MCP clients.
+- **OpenAI-compatible API** — `POST /v1/audio/transcriptions` so any OpenAI-API-aware tool can transcribe through MeetNote locally.
 
 ## Benchmark
 

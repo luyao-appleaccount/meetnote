@@ -763,6 +763,8 @@ tr.row-done .act-task{text-decoration:line-through;color:var(--text-3)}
       <input class="input" id="nm-title" placeholder="默认:会议 + 当前时间"/>
       <div class="form-label"><svg class="ic ic-s"><use href="#i-users"/></svg>说话人数 <span style="font-weight:400;color:var(--text-3)">—— 已知人数时指定,分离更准</span></div>
       <div id="nm-speakers" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      <div class="form-label"><svg class="ic ic-s"><use href="#i-mic"/></svg>音频输入 <span style="font-weight:400;color:var(--text-3)">—— 录 Teams/钉钉/飞书等会议,装 BlackHole 并选它</span></div>
+      <select class="input" id="nm-device"></select>
       <div class="form-label">从模板开始(预设议程)</div>
       <div class="tpl-grid" id="nm-tpl" style="grid-template-columns:repeat(3,1fr);gap:10px"></div>
       <div class="form-label"><svg class="ic ic-s"><use href="#i-list"/></svg>议程(可选)</div>
@@ -915,7 +917,7 @@ function todoHTML(a){
 }
 
 /* ================= 新建会议 ================= */
-let nmTplIdx=0, nmSpk=-1;
+let nmTplIdx=0, nmSpk=-1, nmDevices=[];
 function openNewMeeting(tplIdx){
   if(STORE.state.recording){toast('已有会议在录制中');go('live');return}
   nmTplIdx=tplIdx??0;
@@ -923,7 +925,21 @@ function openNewMeeting(tplIdx){
   $('#nm-title').value='';
   renderNmTpl();
   renderNmSpk();
+  renderNmDevice();
   $('#nm-agenda').value=getTpls()[nmTplIdx].agenda.join('\n');
+}
+async function renderNmDevice(){
+  const sel=$('#nm-device');
+  sel.innerHTML='<option value="">默认麦克风</option>';
+  try{
+    nmDevices=await GET('/api/audio-devices');
+    if(nmDevices.length){
+      sel.innerHTML+='<option value="__default__">默认麦克风(系统当前输入)</option>';
+      nmDevices.forEach(d=>{
+        sel.innerHTML+=`<option value="${esc(d.name)}">${esc(d.name)}</option>`;
+      });
+    }
+  }catch(e){/* 设备列表拿不到就用默认 */}
 }
 function renderNmTpl(){
   $('#nm-tpl').innerHTML=getTpls().map((t,i)=>`
@@ -953,7 +969,8 @@ async function startMeeting(){
   renderLiveAgenda();
   go('live');
   try{
-    await POST('/api/start',{title,num_speakers:nmSpk});
+    const dev=$('#nm-device').value;
+    await POST('/api/start',{title,num_speakers:nmSpk,device:dev==='__default__'?null:(dev||null)});
     toast('会议已开始,实时转写就绪 ✨');
     STORE.live.timer=setInterval(pollLive,1200);
   }catch(e){

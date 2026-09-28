@@ -235,6 +235,17 @@ def _best_speaker(diar, start, end, spk_map):
     return spk_map.get(best, "说话人?")
 
 
+def list_input_devices():
+    """列出可用音频输入设备,供 UI/agent 选择(如 BlackHole 用于录会议软件的声音)。"""
+    import sounddevice as sd
+    out = []
+    for i, d in enumerate(sd.query_devices()):
+        if d.get("max_input_channels", 0) > 0:
+            out.append({"index": i, "name": d["name"],
+                        "default": bool(d.get("isdefault", False))})
+    return out
+
+
 class TranscribeEngine:
     def __init__(self, model_size="small", num_speakers=-1, on_segment=None):
         self.model_size = model_size
@@ -248,6 +259,7 @@ class TranscribeEngine:
         self._thread = None
         self.model = None
         self.sd_diar = None
+        self.device = None
 
     def load_models(self, with_diarization=True):
         if self.model is None:
@@ -255,9 +267,11 @@ class TranscribeEngine:
         if with_diarization and self.sd_diar is None:
             self.sd_diar = build_diarizer(self.num_speakers)
 
-    def start(self):
+    def start(self, device=None):
+        """开始录音+实时转写。device: 音频输入设备名(如 "BlackHole 2ch"),None=系统默认麦克风。"""
         if self.model is None:
             self.load_models()
+        self.device = device
         self.results = []
         self.audio_frames = []
         self.total_samples = 0
@@ -335,6 +349,7 @@ class TranscribeEngine:
 
         # 坑3:macOS 上必须显式指定 blocksize,否则回调块只有 14 帧,CPU 被拖满
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32",
+                            device=self.device,
                             blocksize=int(SAMPLE_RATE * BLOCK_S), callback=callback):
             while not self._stop_event.is_set():
                 try:

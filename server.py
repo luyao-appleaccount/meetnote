@@ -93,6 +93,7 @@ threading.Thread(target=preload, daemon=True).start()
 class StartReq(BaseModel):
     title: str = ""
     num_speakers: int = -1   # -1 = 自动
+    device: str = None       # 音频输入设备名(None=默认麦克风;BlackHole 可录会议软件声音)
 
 
 class StopReq(BaseModel):
@@ -119,6 +120,17 @@ def api_state():
     }
 
 
+@app.get("/api/audio-devices")
+def api_audio_devices():
+    """列出可用音频输入设备(BlackHole 等虚拟设备可采集会议软件声音)。"""
+    if not ENGINE_OK:
+        return []
+    try:
+        return eng_mod.list_input_devices()
+    except Exception:
+        return []
+
+
 @app.post("/api/start")
 def api_start(req: StartReq):
     if not ENGINE_OK:
@@ -133,7 +145,7 @@ def api_start(req: StartReq):
     state["cur_title"] = req.title.strip()
     state["cur_started"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     try:
-        eng.start()
+        eng.start(device=req.device)
     except Exception as e:
         state["model_msg"] = f"无法打开麦克风:{e}"
         raise HTTPException(500, f"无法开始录音:{e}(服务器需要能访问麦克风/音频输入设备)")
@@ -241,6 +253,33 @@ async def api_import(file: UploadFile = File(...), num_speakers: int = Form(-1),
 
     threading.Thread(target=work, daemon=True).start()
     return {"ok": True, "meeting_id": mid}
+
+
+# ---------- OpenAI 兼容转写端点(给通用 agent/工具调用) ----------
+
+@app.post("/v1/audio/transcriptions")
+async def v1_transcriptions(file: UploadFile = File(...), model: str = Form("small"),
+                            response_format: str = Form("json")):
+    """OpenAI /v1/audio/transcriptions 兼容接口:本地 whisper 转写。
+
+    model: small/medium/large-v3;response_format: json(带 segments)/text(纯文本)
+    """
+    if not ENGINE_OK:
+        raise HTTPException(500, f"转写引擎不可用:{ENGINE_ERR}")
+    suffix = Path(file.filename or "audio").suffix or ".wav"
+    tmp = RECORDINGS / f"openai_tmp_{datetime.now().strftime('%H%M%S_%f')}{suffix}"
+    try:
+        tmp.write_bytes(await file.read())
+        if model not in ("small", "medium", "large-v3"):
+            model = "small"
+        segs = eng_mod.retranscribe_file(str(tmp), model)
+    finally:
+        tmp.unlink(missing_ok=True)
+    text = "".join(s["text"].strip() for s in segs)
+    if response_format == "text":
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(text)
+    return {"text": text, "segments": segs}
 
 
 # ---------- 会议 ----------

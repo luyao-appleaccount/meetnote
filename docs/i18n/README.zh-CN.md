@@ -25,11 +25,12 @@
 
 MeetNote 是一个自托管的会议纪要应用：录制麦克风或导入音视频文件，用 faster-whisper 转写、sherpa-onnx 声纹模型做说话人分离，再用纯本地规则引擎（可选 LLM）提取结构化纪要——一句话总结、要点、决策、行动项、说话人统计。不上云、不要 token、录音与文字不出机器。
 
-同一套代码提供三种形态：
+同一套代码提供四种形态：
 
-- **Web 应用** — FastAPI 服务 + 单页前端（实时录制、会中标记 ⭐/✓、行动项中心、大模型重转、Markdown 导出）。
+- **Web 应用** — FastAPI 服务 + 单页前端（实时录制、BlackHole 采集会议软件声音、会中标记 ⭐/✓、行动项中心、大模型重转、Markdown 导出）。
 - **SDK / CLI** — `import sdk` 或 `python sdk.py diarize meeting.wav`，给脚本和 agent 用。
 - **MCP server** — 把转写和分离暴露成工具，供 Claude Code、Claude Desktop、WorkBuddy 等 MCP 客户端调用。
+- **OpenAI 兼容 API** — `POST /v1/audio/transcriptions`，任何懂 OpenAI 接口的 agent/工具都能直接本地调用。
 
 ## 基准测试
 
