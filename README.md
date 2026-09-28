@@ -131,6 +131,7 @@ Two tools are exposed: `transcribe_audio(path, model)` and `diarize_audio(path, 
 - [SDK & CLI](docs/sdk.md) — full API reference and usage patterns
 - [MCP server](docs/mcp.md) — agent integration (Claude Code / Desktop, WorkBuddy, generic MCP)
 - [Benchmark](docs/benchmark.md) — diarization test suite, metrics, known limits, how to re-run
+- [Roadmap](ROADMAP.md) — competitor-strength features planned as independent PRs
 
 ## Contributing
 
