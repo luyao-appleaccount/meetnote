@@ -238,11 +238,13 @@ def _best_speaker(diar, start, end, spk_map):
 def list_input_devices():
     """列出可用音频输入设备,供 UI/agent 选择(如 BlackHole 用于录会议软件的声音)。"""
     import sounddevice as sd
+    default = sd.default.device
+    if isinstance(default, (tuple, list)):
+        default = default[0]
     out = []
     for i, d in enumerate(sd.query_devices()):
         if d.get("max_input_channels", 0) > 0:
-            out.append({"index": i, "name": d["name"],
-                        "default": bool(d.get("isdefault", False))})
+            out.append({"index": i, "name": d["name"], "default": i == default})
     return out
 
 
@@ -271,6 +273,11 @@ class TranscribeEngine:
         """开始录音+实时转写。device: 音频输入设备名(如 "BlackHole 2ch"),None=系统默认麦克风。"""
         if self.model is None:
             self.load_models()
+        if device:
+            # 同步校验设备存在,让 start() 调用方 fail-fast;否则无效设备名要到后台线程才报错
+            import sounddevice as sd
+            if device not in {d["name"] for d in sd.query_devices()}:
+                raise ValueError(f"音频输入设备不存在: {device}")
         self.device = device
         self.results = []
         self.audio_frames = []

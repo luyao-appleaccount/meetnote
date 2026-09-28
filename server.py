@@ -272,10 +272,11 @@ async def v1_transcriptions(file: UploadFile = File(...), model: str = Form("sma
         tmp.write_bytes(await file.read())
         if model not in ("small", "medium", "large-v3"):
             model = "small"
-        segs = eng_mod.retranscribe_file(str(tmp), model)
+        from starlette.concurrency import run_in_threadpool
+        segs = await run_in_threadpool(eng_mod.retranscribe_file, str(tmp), model)
     finally:
         tmp.unlink(missing_ok=True)
-    text = "".join(s["text"].strip() for s in segs)
+    text = " ".join(s["text"].strip() for s in segs)
     if response_format == "text":
         from fastapi.responses import PlainTextResponse
         return PlainTextResponse(text)
