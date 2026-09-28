@@ -31,5 +31,23 @@ fetch "$ENDPOINT/csukuangfj/speaker-embedding-models/resolve/main/2-two-speakers
 fetch "$ENDPOINT/csukuangfj/speaker-embedding-models/resolve/main/3-two-speakers-en.wav" \
       models/3-two-speakers-en.wav
 
+# FunASR 快速中文引擎(可选):paraformer-zh 转写 + ct-punc 标点(均为 int8 量化 onnx)
+MS_BASE="https://modelscope.cn/api/v1/models"
+mkdir -p models/paraformer-onnx models/punc-onnx
+fetch "$MS_BASE/iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-onnx/repo?Revision=master&FilePath=model_quant.onnx" \
+      models/paraformer-onnx/model_quant.onnx
+fetch "$MS_BASE/iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-onnx/repo?Revision=master&FilePath=config.yaml" \
+      models/paraformer-onnx/config.yaml
+fetch "$MS_BASE/iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-onnx/repo?Revision=master&FilePath=am.mvn" \
+      models/paraformer-onnx/am.mvn
+fetch "$MS_BASE/iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-onnx/repo?Revision=master&FilePath=tokens.json" \
+      models/paraformer-onnx/tokens.json
+fetch "$MS_BASE/iic/punc_ct-transformer_zh-cn-common-vocab272727-onnx/repo?Revision=master&FilePath=model_quant.onnx" \
+      models/punc-onnx/model_quant.onnx
+fetch "$MS_BASE/iic/punc_ct-transformer_zh-cn-common-vocab272727-onnx/repo?Revision=master&FilePath=config.yaml" \
+      models/punc-onnx/config.yaml
+fetch "$MS_BASE/iic/punc_ct-transformer_zh-cn-common-vocab272727-onnx/repo?Revision=master&FilePath=tokens.json" \
+      models/punc-onnx/tokens.json
+
 echo "done. models/:"
 ls -la models/

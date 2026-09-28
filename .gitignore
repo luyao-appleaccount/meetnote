@@ -7,8 +7,8 @@ venv/
 
 # 运行时数据(数据库/录音/基准音频)与模型二进制不入库
 data/
-models/*.onnx
-models/*.wav
+models/*
+!models/README.md
 
 # 系统
 .DS_Store

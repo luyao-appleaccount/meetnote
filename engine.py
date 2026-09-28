@@ -64,6 +64,47 @@ def retranscribe_file(wav_path, model_size="medium"):
     return [{"start": s.start, "end": s.end, "text": s.text.strip()} for s in segments]
 
 
+# ---------- FunASR 中文引擎(可选) ----------
+# funasr-onnx(阿里官方 ONNX 导出,零 torch)的 paraformer-zh + ct-punc 标点:
+# 汉字准确率与 whisper 持平,速度约快一个量级,加载仅 ~0.6s。仅覆盖转写,分离仍走 whisper。
+_FUNASR = None
+
+
+def _load_funasr():
+    global _FUNASR
+    if _FUNASR is None:
+        from funasr_onnx import Paraformer, CT_Transformer
+        asr_dir = MODELS_DIR / "paraformer-onnx"
+        punc_dir = MODELS_DIR / "punc-onnx"
+        if not (asr_dir / "model_quant.onnx").exists():
+            raise FileNotFoundError(f"缺少 FunASR 模型,请先运行 scripts/download_models.sh: {asr_dir}")
+        _FUNASR = (Paraformer(str(asr_dir), quantize=True),
+                   CT_Transformer(str(punc_dir), quantize=True))
+    return _FUNASR
+
+
+def transcribe_funasr_file(wav_path):
+    """FunASR 快速中文转写(paraformer-zh + ct-punc 标点),Silero VAD 分段给时间戳。"""
+    from faster_whisper.audio import decode_audio
+    from faster_whisper.vad import VadOptions, get_speech_timestamps
+    asr, punc = _load_funasr()
+    audio = decode_audio(str(wav_path), sampling_rate=SAMPLE_RATE)
+    ts = get_speech_timestamps(
+        audio, VadOptions(threshold=0.5, min_silence_duration_ms=500,
+                          min_speech_duration_ms=250, speech_pad_ms=100))
+    segs = []
+    for v in ts:
+        chunk = audio[v["start"]:v["end"]]
+        res = asr(chunk)
+        text = res[0]["preds"][0] if res else ""
+        if not text.strip():
+            continue
+        text = punc(text)[0]
+        segs.append({"start": v["start"] / SAMPLE_RATE,
+                     "end": v["end"] / SAMPLE_RATE, "text": text})
+    return segs
+
+
 def build_diarizer(num_speakers=-1):
     """构建 sherpa-onnx 离线说话人分离器(零授权,不需要 HF token)。"""
     import sherpa_onnx

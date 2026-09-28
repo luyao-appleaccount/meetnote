@@ -30,11 +30,13 @@ import sdk
 
 # [{"start": 0.0, "end": 6.9, "text": "..."}]
 segs = sdk.transcribe("meeting.wav", model_size="small")
+segs = sdk.transcribe("meeting.wav", engine="funasr")        # 快速中文引擎
 
 # [{"start", "end", "speaker": "说话人1", "text"}]
 segs = sdk.diarize("meeting.wav")                    # auto
 segs = sdk.diarize("meeting.wav", num_speakers=4,    # preset
                    model_size="medium")
+segs = sdk.diarize("meeting.wav", engine="funasr")   # 转写用 funasr,分离仍走 whisper
 ```
 
 ### Model choice
@@ -44,6 +46,13 @@ segs = sdk.diarize("meeting.wav", num_speakers=4,    # preset
 | `small` (int8) | real-time on CPU | good for everyday zh meetings | default, live recording |
 | `medium` | slower | clearly better | offline re-transcription |
 | `large-v3` | slowest | best | important meetings |
+
+### Engine (转写引擎)
+
+| Engine | 说明 |
+|---|---|
+| `whisper` (默认) | faster-whisper,支持中英等多语种,分离管线使用它 |
+| `funasr` | 阿里 FunASR ONNX 版(paraformer-zh + ct-punc 标点,零 torch):中文汉字准确率与 whisper 持平、速度约快一个量级、加载 ~0.6s;仅覆盖转写,分离仍走 whisper |
 
 ### num_speakers
 

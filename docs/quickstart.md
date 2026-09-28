@@ -42,13 +42,14 @@ python server.py
 |---|---|
 | Live recording | 新建会议 → pick a speaker-count option (自动 or preset) + an audio input device → start; speakers are auto-colored in the transcript |
 | Record meeting apps | Install [BlackHole](https://github.com/ExistentialAudio/BlackHole) (macOS virtual loopback device), route Teams/钉钉/飞书/Zoom output to it, then pick "BlackHole" as the 音频输入 — MeetNote records the call audio itself |
+| Fast Chinese engine | `python sdk.py transcribe meeting.wav --engine funasr` — FunASR paraformer-zh (int8, zero torch), same character accuracy as whisper but ~an order of magnitude faster; needs the FunASR models from `download_models.sh` |
 | In-meeting marks | Hover a transcript line → ⭐ key point / ✓ todo |
 | Import audio | 导入录音 → pick wav/mp3/m4a/mp4 → background transcription + diarization |
 | Overview | 一句话总结 / 要点 / 决策 / 行动项 / 说话人统计与主题词 |
 | Re-transcribe | Meeting detail → switch to `medium` / `large-v3`; versions coexist |
 | Action hub | Cross-meeting todos, check-off, manual add, trace back to source meeting |
 | Export | Markdown minutes / wav recording |
-| OpenAI-compatible API | `POST /v1/audio/transcriptions` (multipart: `file`, `model`, `response_format`) — any OpenAI-API-aware agent or tool can call MeetNote directly |
+| OpenAI-compatible API | `POST /v1/audio/transcriptions` (multipart: `file`, `model`, `engine`, `response_format`) — any OpenAI-API-aware agent or tool can call MeetNote directly |
 
 ## 4. Optional: LLM-enhanced summary
 

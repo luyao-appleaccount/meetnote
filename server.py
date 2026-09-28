@@ -259,10 +259,11 @@ async def api_import(file: UploadFile = File(...), num_speakers: int = Form(-1),
 
 @app.post("/v1/audio/transcriptions")
 async def v1_transcriptions(file: UploadFile = File(...), model: str = Form("small"),
-                            response_format: str = Form("json")):
+                            response_format: str = Form("json"), engine: str = Form("whisper")):
     """OpenAI /v1/audio/transcriptions 兼容接口:本地 whisper 转写。
 
-    model: small/medium/large-v3;response_format: json(带 segments)/text(纯文本)
+    model: small/medium/large-v3;engine: whisper(默认)/funasr(快速中文);
+    response_format: json(带 segments)/text(纯文本)
     """
     if not ENGINE_OK:
         raise HTTPException(500, f"转写引擎不可用:{ENGINE_ERR}")
@@ -273,7 +274,10 @@ async def v1_transcriptions(file: UploadFile = File(...), model: str = Form("sma
         if model not in ("small", "medium", "large-v3"):
             model = "small"
         from starlette.concurrency import run_in_threadpool
-        segs = await run_in_threadpool(eng_mod.retranscribe_file, str(tmp), model)
+        if engine == "funasr":
+            segs = await run_in_threadpool(eng_mod.transcribe_funasr_file, str(tmp))
+        else:
+            segs = await run_in_threadpool(eng_mod.retranscribe_file, str(tmp), model)
     finally:
         tmp.unlink(missing_ok=True)
     text = " ".join(s["text"].strip() for s in segs)

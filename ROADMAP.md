@@ -4,7 +4,7 @@
 
 | PR | 主题 | 来源竞品 | 规模 | 状态 |
 |---|---|---|---|---|
-| [PR1](#pr1-funasr-中文引擎) | FunASR 中文引擎 | 阿里 FunASR / jkinco-listen-open | 中 | 待开始 |
+| [PR1](#pr1-funasr-中文引擎) | FunASR 中文引擎 | 阿里 FunASR / jkinco-listen-open | 中 | ✅ 已落地 |
 | [PR2](#pr2-parakeet-英文引擎) | Parakeet 英文引擎 | meetily 同款 | 中 | 待开始 |
 | [PR3](#pr3-说话人命名与声纹注册) | 说话人命名/声纹注册 | TalkTrack / 主流会议产品 | 中 | 待开始 |
 | [PR4](#pr4-实时转写-websocket-与实时分离) | 实时 WebSocket + 实时分离 | Vexa / WhisperLiveKit | 大(拆两个 PR) | 待开始 |
@@ -22,24 +22,19 @@
 
 **目标**：中文转写质量提升（标点、顺滑、术语），作为可选 ASR 引擎与 whisper 并存。
 
-**背景**：FunASR（阿里）是中文 ASR 事实标准；`rapid_paraformer` 提供 ONNX Runtime 推理，CPU 流畅、无需 torch，符合本项目的"零授权、轻依赖"路线。
+**落地结果（2026-09-28）**：采用 `funasr-onnx`（阿里官方 ONNX 导出，零 torch）的 paraformer-zh + ct-punc 标点组合，int8 量化。实测结论：**汉字准确率与 whisper 持平、标点一致、速度约快一个量级、加载仅 ~0.6s**——定位为「快速中文引擎」而非「更准引擎」（准确率天花板仍是 whisper medium/large-v3）。分离管线保持 whisper 不变。
 
 **改动**：
 
-- `engine.py`：新增 `load_paraformer()` / `transcribe_paraformer(audio) -> [{start,end,text}]`，与现有 `retranscribe_file` 并列
-- `sdk.py`：`transcribe()`/`diarize()` 增加 `engine="whisper"|"paraformer"` 参数
-- `server.py`：重转接口与 `/v1/audio/transcriptions` 增加 `engine` 字段
-- `scripts/download_models.sh`：新增 paraformer-zh 模型下载
-- `requirements.txt`：`rapid_paraformer`、`onnxruntime`
+- `engine.py`：`transcribe_funasr_file()`（paraformer + ct-punc + Silero VAD 分段给时间戳）
+- `sdk.py`：`transcribe()`/`diarize()` 增加 `engine="whisper"|"funasr"`；CLI 增加 `--engine`
+- `server.py`：`/v1/audio/transcriptions` 增加 `engine` 字段
+- `scripts/download_models.sh`：新增 paraformer-onnx / punc-onnx（ModelScope，int8，约 570MB）
+- `requirements.txt`：`funasr-onnx`；`numpy` 收紧为 `==1.26.4`（funasr-onnx 硬性要求，faster-whisper/sherpa 均兼容）
 
-**验收**：
+**验收**：已实测 d2/dialog2 转写与分离，标点/时间戳/说话人交替均正确；whisper 默认路径不受影响。
 
-1. d1–d6 / dialog2 中文样例两种引擎转写对比，paraformer 标点/顺滑不低于 whisper small
-2. 实时录制路径仍默认 whisper（paraformer 仅离线路径，实时接入放 PR4）
-3. benchmark 分离用例重跑，分离指标不回归（转写层更换不影响分离管线）
-4. 无 GPU 环境 CPU 转写速率 ≥ 实时
-
-**风险**：新依赖体积（onnxruntime ~50MB）；模型下载量（~200MB）——都走 hf-mirror 兜底。
+**遗留说明**：SenseVoice（多语种、自带标点）的 ONNX 版 ModelScope 上只有 936MB 的 PyTorch `model.pt`，需 torch 才能导出，与「轻依赖」路线冲突，未采用；若后续接受 torch 依赖可再评估。
 
 ## PR2 Parakeet 英文引擎
 

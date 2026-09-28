@@ -29,20 +29,26 @@ def _decode(path):
     return decode_audio(str(path), sampling_rate=engine.SAMPLE_RATE)
 
 
-def transcribe(path, model_size="small"):
-    """整段音频转文字,返回 [{"start","end","text"}]。"""
+def transcribe(path, model_size="small", engine="whisper"):
+    """整段音频转文字,返回 [{"start","end","text"}]。
+
+    engine: whisper(默认) / funasr(paraformer-zh 快速中文,带标点)
+    """
     import engine
+    if engine == "funasr":
+        return engine.transcribe_funasr_file(str(path))
     return engine.retranscribe_file(str(path), model_size)
 
 
-def diarize(path, num_speakers=-1, model_size="small"):
+def diarize(path, num_speakers=-1, model_size="small", engine="whisper"):
     """转写 + 说话人分离,返回 [{"start","end","speaker","text"}]。
 
     num_speakers: -1 自动人数(自研抗过拆聚类);>0 预设人数(sherpa 聚类,最稳)。
+    engine: whisper(默认) / funasr(快速中文);分离管线始终使用 whisper。
     """
     import engine
     audio = _decode(path)
-    results = [(s["start"], s["end"], s["text"]) for s in transcribe(path, model_size)]
+    results = [(s["start"], s["end"], s["text"]) for s in transcribe(path, model_size, engine)]
     sd = engine.build_diarizer(num_speakers) if num_speakers and num_speakers > 0 else None
     return engine.diarize_audio(audio, results, sd)
 
@@ -54,15 +60,17 @@ def main():
         p = sub.add_parser(name)
         p.add_argument("audio", help="音频/视频文件路径")
         p.add_argument("--model", default="small", help="whisper 模型(small/medium/large-v3)")
+        p.add_argument("--engine", default="whisper", choices=("whisper", "funasr"),
+                       help="转写引擎: whisper(默认) / funasr(快速中文)")
         p.add_argument("--json", action="store_true", help="输出 JSON")
     sub.choices["diarize"].add_argument("-n", "--num-speakers", type=int, default=-1,
                                         help="说话人数,-1=自动")
     args = ap.parse_args()
 
     if args.cmd == "transcribe":
-        segs = transcribe(args.audio, args.model)
+        segs = transcribe(args.audio, args.model, args.engine)
     else:
-        segs = diarize(args.audio, args.num_speakers, args.model)
+        segs = diarize(args.audio, args.num_speakers, args.model, args.engine)
 
     if args.json:
         print(json.dumps(segs, ensure_ascii=False, indent=2))

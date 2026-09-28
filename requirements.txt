@@ -5,7 +5,8 @@ sherpa-onnx==1.13.8        # 说话人分离(3dspeaker 声纹,零授权)
 fastapi==0.141.1           # Web 服务
 uvicorn==0.53.0            # ASGI 服务器
 python-multipart==0.0.32   # 音频文件上传
-numpy==2.5.3
+numpy==1.26.4              # funasr-onnx 要求 <=1.26.4;faster-whisper/sherpa 均兼容
 sounddevice==0.5.6         # 麦克风采集(需要系统 PortAudio)
 requests==2.34.2           # 可选:LLM 纪要增强
 mcp==1.30.0                # 可选:MCP server(agent 调用);注意必须 <2,2.x API 已改
+funasr-onnx==0.4.3         # 可选:FunASR 快速中文转写引擎(paraformer-zh + ct-punc,零 torch)
