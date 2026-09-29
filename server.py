@@ -178,11 +178,21 @@ def _pipeline(mid, results, audio, num_speakers, source="small", stars=None, tod
             db.update_meeting_wav(mid, str(wav))
 
         steps[mid] = {"step": "diarize", "msg": "说话人分离中"}
-        if num_speakers and num_speakers > 0:
-            diar = eng_mod.build_diarizer(num_speakers)
-            segs = eng_mod.diarize_audio(audio, results, diar)
-        else:
-            segs = eng_mod.diarize_audio(audio, results)
+        diar = eng_mod.build_diarizer(num_speakers) if num_speakers and num_speakers > 0 else None
+        segs, cents = eng_mod.diarize_with_centroids(audio, results, diar)
+        if cents:
+            db.set_meeting_speaker_embs(mid, cents)
+            known = db.get_speakers_embs()
+            if known:
+                renamed = 0
+                for s in segs:
+                    emb = cents.get(s["speaker"])
+                    if emb is None:
+                        continue
+                    name = eng_mod.best_speaker_match(emb, known)
+                    if name and name != s["speaker"]:
+                        s["speaker"] = name
+                        renamed += 1
 
         db.add_segments(mid, segs, source)
 
@@ -346,6 +356,46 @@ def api_patch_meeting(mid: int, req: PatchMeeting):
 def api_delete_meeting(mid: int):
     db.delete_meeting(mid)
     state["processing"].pop(mid, None)
+    return {"ok": True}
+
+
+# ---------- 声纹库 / 说话人命名 ----------
+
+class RenameSpeakerReq(BaseModel):
+    old: str
+    name: str
+
+
+@app.post("/api/meetings/{mid}/rename-speaker")
+def api_rename_speaker(mid: int, req: RenameSpeakerReq):
+    """把会议里的 '说话人N' 改名为用户指定的名字,并把其声纹注册进声纹库(跨会议自动复用)。"""
+    m = db.get_meeting(mid)
+    if not m:
+        raise HTTPException(404, "会议不存在")
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(400, "名字不能为空")
+    db.rename_segment_speaker(mid, req.old, name)
+    embs = db.get_meeting_speaker_embs(mid)
+    emb = embs.get(req.old)
+    if emb is not None:
+        db.add_speaker(name, np.asarray(emb, dtype=np.float32).tobytes())
+    # 重算纪要里的说话人统计
+    segs = db.get_segments(mid)
+    summary = summarizer.build(segs, m.get("duration") or 0, SUMMARY_STYLE, m["title"])
+    db.set_meeting_summary(mid, summary)
+    return {"ok": True, "name": name}
+
+
+@app.get("/api/speakers")
+def api_speakers():
+    """声纹库中已注册的说话人。"""
+    return db.list_speakers()
+
+
+@app.delete("/api/speakers/{sid}")
+def api_delete_speaker(sid: int):
+    db.delete_speaker(sid)
     return {"ok": True}
 
 

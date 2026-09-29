@@ -44,6 +44,7 @@ python server.py
 | Record meeting apps | Install [BlackHole](https://github.com/ExistentialAudio/BlackHole) (macOS virtual loopback device), route Teams/钉钉/飞书/Zoom output to it, then pick "BlackHole" as the 音频输入 — MeetNote records the call audio itself |
 | Fast Chinese engine | `python sdk.py transcribe meeting.wav --engine funasr` — FunASR paraformer-zh (int8, zero torch), same character accuracy as whisper but ~an order of magnitude faster; needs the FunASR models from `download_models.sh` |
 | In-meeting marks | Hover a transcript line → ⭐ key point / ✓ todo |
+| Name speakers | In a meeting's transcript, click a speaker name → rename it. The voiceprint is registered, so the next meeting auto-names the same person |
 | Import audio | 导入录音 → pick wav/mp3/m4a/mp4 → background transcription + diarization |
 | Overview | 一句话总结 / 要点 / 决策 / 行动项 / 说话人统计与主题词 |
 | Re-transcribe | Meeting detail → switch to `medium` / `large-v3`; versions coexist |

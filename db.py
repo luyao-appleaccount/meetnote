@@ -64,11 +64,20 @@ def init_db():
             created_at TEXT
         )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS speakers(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            embedding BLOB,
+            created_at TEXT
+        )"""
+    )
     # migration:旧库升级(missing column 时补上)
     for col, ddl in [
         ("marks", "ALTER TABLE meetings ADD COLUMN marks TEXT"),
         ("summary", "ALTER TABLE meetings ADD COLUMN summary TEXT"),
         ("tags", "ALTER TABLE meetings ADD COLUMN tags TEXT"),
+        ("speaker_embs", "ALTER TABLE meetings ADD COLUMN speaker_embs TEXT"),
     ]:
         try:
             conn.execute(ddl)
@@ -219,6 +228,84 @@ def delete_meeting(meeting_id):
     conn.execute("DELETE FROM meetings WHERE id=?", (meeting_id,))
     conn.commit()
     conn.close()
+
+
+# ---------- 声纹库 ----------
+
+def add_speaker(name, embedding_bytes):
+    """注册/更新说话人声纹(name 唯一)。"""
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO speakers(name, embedding, created_at) VALUES(?,?,?) "
+        "ON CONFLICT(name) DO UPDATE SET embedding=excluded.embedding",
+        (name, embedding_bytes, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+    )
+    conn.commit()
+    conn.close()
+
+
+def list_speakers():
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT id, name, created_at FROM speakers ORDER BY name").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def delete_speaker(speaker_id):
+    conn = get_conn()
+    conn.execute("DELETE FROM speakers WHERE id=?", (speaker_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_speakers_embs():
+    """返回 {name: float32 numpy 数组} 供声纹匹配。"""
+    import numpy as np
+    conn = get_conn()
+    rows = conn.execute("SELECT name, embedding FROM speakers WHERE embedding IS NOT NULL").fetchall()
+    conn.close()
+    out = {}
+    for r in rows:
+        try:
+            out[r["name"]] = np.frombuffer(r["embedding"], dtype=np.float32)
+        except Exception:
+            pass
+    return out
+
+
+def rename_segment_speaker(meeting_id, old, new):
+    conn = get_conn()
+    conn.execute("UPDATE segments SET speaker=? WHERE meeting_id=? AND speaker=?",
+                 (new, meeting_id, old))
+    conn.commit()
+    conn.close()
+
+
+def set_meeting_speaker_embs(meeting_id, embs):
+    """embs: {speaker_label: float32 数组}; 存为 JSON(float list)。"""
+    import numpy as np
+    payload = {k: np.asarray(v, dtype=np.float32).tolist() for k, v in embs.items()}
+    conn = get_conn()
+    conn.execute("UPDATE meetings SET speaker_embs=? WHERE id=?",
+                 (json.dumps(payload), meeting_id))
+    conn.commit()
+    conn.close()
+
+
+def get_meeting_speaker_embs(meeting_id):
+    """返回 {speaker_label: float32 数组}。"""
+    import numpy as np
+    conn = get_conn()
+    row = conn.execute("SELECT speaker_embs FROM meetings WHERE id=?", (meeting_id,)).fetchone()
+    conn.close()
+    if not row or not row["speaker_embs"]:
+        return {}
+    try:
+        raw = json.loads(row["speaker_embs"])
+        return {k: np.asarray(v, dtype=np.float32) for k, v in raw.items()}
+    except Exception:
+        return {}
 
 
 # ---------- 行动项 ----------

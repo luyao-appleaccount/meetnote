@@ -220,12 +220,16 @@ def _average_linkage(X, sim_thr):
 
 
 def _auto_diar(audio):
-    """自动人数分离,返回 [(start, end, cluster_id)]。"""
+    return _auto_diar_full(audio)[0]
+
+
+def _auto_diar_full(audio):
+    """自动分离,返回 ([(start, end, cluster_id)], {cluster_id: 归一化质心})。"""
     segs = [(r.start, r.end)
             for r in _boundary_diarizer().process(audio).sort_by_start_time()]
     segs = _vad_split(audio, segs)
     if len(segs) < 2:
-        return [(s, e, 0) for s, e in segs]
+        return [(s, e, 0) for s, e in segs], {}
     X = _embed_segments(audio, segs)
     labels = _average_linkage(X, AUTO_SIM_THR)
     # 筛核心簇(总时长过短的是碎片),碎片段按声纹相似度归入最近核心簇
@@ -237,10 +241,63 @@ def _auto_diar(audio):
     core = sorted(l for l, c in cdur.items() if c >= core_min) or sorted(cdur)
     C = np.stack([X[labels == l].mean(axis=0) for l in core])
     C /= np.linalg.norm(C, axis=1, keepdims=True) + 1e-9
-    out = []
-    for (s, e), l, x in zip(segs, labels, X):
-        out.append((s, e, l if l in core else core[int(np.argmax(C @ x))]))
-    return out
+    final = []
+    for l, x in zip(labels, X):
+        final.append(l if l in core else core[int(np.argmax(C @ x))])
+    cents = {}
+    for l in set(final):
+        v = X[np.array(final) == l].mean(axis=0)
+        cents[l] = v / (np.linalg.norm(v) + 1e-9)
+    return [(s, e, l) for (s, e), l in zip(segs, final)], cents
+
+
+def diarize_with_centroids(audio, results, sd_diar=None):
+    """说话人分离,一次计算同时返回段落与每个说话人的质心声纹。
+
+    返回: (aligned, centroids)
+      aligned:   [{'start','end','speaker','text'}]
+      centroids: {'说话人N': 归一化 float32 数组}
+    """
+    if len(audio) == 0:
+        return [], {}
+    if sd_diar is not None:
+        diar = [(r.start, r.end, r.speaker)
+                for r in sd_diar.process(audio).sort_by_start_time()]
+        segs = [(s, e) for s, e, _ in diar]
+        X = _embed_segments(audio, segs) if segs else None
+        spk_ids = sorted({s for _, _, s in diar})
+        spk_map = {sid: f"说话人{i + 1}" for i, sid in enumerate(spk_ids)}
+        cents = {}
+        if X is not None and len(X):
+            for sid in spk_ids:
+                idx = [k for k, (_, _, s) in enumerate(diar) if s == sid]
+                v = X[idx].mean(axis=0)
+                cents[spk_map[sid]] = v / (np.linalg.norm(v) + 1e-9)
+    else:
+        diar, cents_raw = _auto_diar_full(audio)
+        ids = sorted(cents_raw)
+        spk_map = {sid: f"说话人{i + 1}" for i, sid in enumerate(ids)}
+        cents = {spk_map[sid]: cents_raw[sid] for sid in ids}
+    aligned = []
+    for start, end, text in sorted(results, key=lambda r: r[0]):
+        speaker = _best_speaker(diar, start, end, spk_map)
+        aligned.append({"start": start, "end": end, "speaker": speaker, "text": text})
+    return aligned, cents
+
+
+def best_speaker_match(emb, known_embs, threshold=0.65):
+    """在已知声纹库 known_embs {name: np.ndarray} 里找最匹配的名字,低于阈值返回 None。
+
+    阈值偏保守:误配(把甲认成乙)比漏配(显示"说话人N")代价大得多;
+    实测真人同人质心 ~0.6-0.9、异人 ~0.26,TTS 相似音色异人 ~0.57,故取 0.65。
+    """
+    best, bs = None, -1.0
+    n = np.linalg.norm(emb) + 1e-9
+    for name, k in known_embs.items():
+        s = float(np.dot(emb, k) / (n * (np.linalg.norm(k) + 1e-9)))
+        if s > bs:
+            bs, best = s, name
+    return best if bs >= threshold else None
 
 
 def diarize_audio(audio, results, sd_diar=None):
@@ -251,20 +308,7 @@ def diarize_audio(audio, results, sd_diar=None):
     sd_diar: 预设人数时传入 build_diarizer(n) 的实例;不传(自动人数)走 _auto_diar
     返回:    [{'start','end','speaker','text'}]
     """
-    if len(audio) == 0:
-        return []
-    if sd_diar is not None:
-        diar = [(r.start, r.end, r.speaker)
-                for r in sd_diar.process(audio).sort_by_start_time()]
-    else:
-        diar = _auto_diar(audio)
-    spk_ids = sorted({s for _, _, s in diar})
-    spk_map = {sid: f"说话人{i + 1}" for i, sid in enumerate(spk_ids)}
-    aligned = []
-    for start, end, text in sorted(results, key=lambda r: r[0]):
-        speaker = _best_speaker(diar, start, end, spk_map)
-        aligned.append({"start": start, "end": end, "speaker": speaker, "text": text})
-    return aligned
+    return diarize_with_centroids(audio, results, sd_diar)[0]
 
 
 def _best_speaker(diar, start, end, spk_map):

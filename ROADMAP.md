@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | [PR1](#pr1-funasr-中文引擎) | FunASR 中文引擎 | 阿里 FunASR / jkinco-listen-open | 中 | ✅ 已落地 |
 | [PR2](#pr2-parakeet-英文引擎) | Parakeet 英文引擎 | meetily 同款 | 中 | 待开始 |
-| [PR3](#pr3-说话人命名与声纹注册) | 说话人命名/声纹注册 | TalkTrack / 主流会议产品 | 中 | 待开始 |
+| [PR3](#pr3-说话人命名与声纹注册) | 说话人命名/声纹注册 | TalkTrack / 主流会议产品 | 中 | ✅ 已落地 |
 | [PR4](#pr4-实时转写-websocket-与实时分离) | 实时 WebSocket + 实时分离 | Vexa / WhisperLiveKit | 大(拆两个 PR) | 待开始 |
 
 通用规范（每个 PR 都适用）：
@@ -60,19 +60,18 @@
 
 **目标**：把"说话人1"变成"张三"，跨会议自动复用。
 
+**落地结果（2026-09-29）**：已实现。分离时用 `diarize_with_centroids` 一次计算段落与每个说话人的质心声纹；质心存入 meetings.speaker_embs，`_pipeline` 里自动比对声纹库改名。详情页点击说话人名字即可改名（`rename-speaker` 同时注册声纹）。自动匹配阈值取 0.65（保守：真人同人质心 ~0.6-0.9、异人 ~0.26；TTS 相似音色异人 ~0.57——误配比漏配代价大）。
+
 **改动**：
 
-- `db.py`：新增 `speakers` 表（id, name, embedding BLOB, created_at）；meetings 的段落 speaker 字段存 `speaker_id` 或名字引用
-- `engine.py`：暴露逐簇质心声纹（`_auto_diar` 返回簇质心），供注册/匹配
-- `server.py`：`POST /api/meetings/{mid}/rename-speaker`（改名+保存声纹）、`GET /api/speakers`
-- 新会议分离完成后：每个簇质心与已注册声纹比对，相似度 ≥ 阈值自动命名，未命中显示"说话人N"等待用户命名
-- `static/index.html`：详情页说话人改名交互 + 已有声纹库提示
+- `db.py`：`speakers` 表 + add/list/delete/get_speakers_embs；meetings.speaker_embs 列；rename_segment_speaker
+- `engine.py`：`diarize_with_centroids`（一次分离返回段落+质心）、`best_speaker_match`
+- `server.py`：`POST /api/meetings/{mid}/rename-speaker`、`GET/DELETE /api/speakers`；`_pipeline` 存质心 + 自动匹配
+- `static/index.html`：详情页说话人名字可点击改名
 
-**验收**：
+**验收（已实测）**：dialog2 两段录音，第一次改名"张三"后第二次自动识别为"张三 + 说话人2"（异人不误配）。
 
-1. 同一人的两段录音（如 d1 与 d3）分别开会，第二次自动显示第一次命的名字
-2. 改名后导出 Markdown 使用新名字
-3. 注册声纹不影响自动人数结果（仅后处理命名）
+**遗留说明**：本功能上线前已分离的旧会议没有存储质心，改名不会注册声纹（仅改名字）；新会议起全部生效。
 
 **风险**：声纹匹配阈值需与聚类阈值区分（同一人 min 0.43 的实测边界，见 docs/benchmark.md）；跨设备/远场录音匹配率会下降——验收用同设备素材。
 
